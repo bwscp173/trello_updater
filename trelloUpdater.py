@@ -3,9 +3,9 @@ import datetime
 import json
 import requests
 
-with open("../trelloAPI.json","r") as f:
+with open("trelloAPI.json","r") as f:
   trello_data = json.load(f)
-with open("../githubAPI.json","r") as f:
+with open("githubAPI.json","r") as f:
   github_data = json.load(f)
 
 TRELLO_API = trello_data["TRELLO_APIKEY"]
@@ -15,7 +15,6 @@ BOARD_NAME = 'github-testing'
 TRELLO_LIST = f"projectEuler push history"
 
 GITHUB_USERNAME = github_data["GITHUB_USERNAME"]
-GITHUB_PASSWORD = github_data["GITHUB_PASSWORD"]
 GITHUB_TOKEN = github_data["GITHUB_TOKEN"]
 GITHUB_PROJECTNAME = "projectEuler"
 
@@ -38,7 +37,7 @@ def display_all_id_board():
   boards = response.json()
 
   for board in boards:
-      print(f"{board['name']} -> {board['id']}")
+    print(f"{board['name']} -> {board['id']}")
 
 def create_new_list(listName: str = "push history"):
   """have a guess what this function does"""
@@ -55,17 +54,10 @@ def create_new_list(listName: str = "push history"):
 def get_all_lists():
   url = f"https://api.trello.com/1/boards/{TRELLO_ID_BOARD}/lists"
 
-  query = {
-      'key': TRELLO_API,
-      'token': TRELLO_TOKEN,
-      'fields': 'name'
-  }
+  query = {'key': TRELLO_API,'token': TRELLO_TOKEN,'fields': 'name'}
 
-  response = requests.request(
-    "GET",
-    url,
-    params=query
-  )
+  response = requests.request("GET",url,params=query)
+
   if response.status_code == 200:
     return response.json()
   else:
@@ -165,11 +157,9 @@ def add_trello_github_history_cards():
     print(f"[{get_time()}]request to get all lists failed")
     print(ex)
     return False
-
-  if type(res) == list:
-    history = res
-
-    for push in history:
+  history = res
+  for push in history:
+    if 'commit' in list(push.keys()) and 'author' in list(push['commit'].keys()) and 'date' in list(push['commit']['author'].keys()) and 'message' in list(push['commit'].keys()):
       push_author = push['commit']['author']['name']
       push_date = push['commit']['author']['date'].replace("T"," ")[:-1]  # '2025-03-29T21:53:59Z' -> '2025-03-29 21:53:59'
       push_message = push['commit']["message"]
@@ -205,19 +195,20 @@ push message:
 {push_message}"""
           create_new_card(idList, push_author, push_message, push_date)
       print(f"[{get_time()}]is there a card with that info already: {not value}")
-
-# testing adding new card:
+    else:
+      raise RequestInvalid(f"request received by the server is malformed, can not find either 'commit' 'author' 'date' ''")
+# #testing adding new card:
 # res = check_list_exists("push history")
 # if type(res) == bool and res == False:
 #   create_new_list()
 #   res = check_list_exists("push history")
-
+#
 # if type(res) == str:
 #   # then response is the id of the list
 #   create_new_card(res, "teammate1", "description be like, hey words")
-
-
-# testing getting and adding labels:
+#
+#
+# #testing getting and adding labels:
 # check_list_exists()
 # print("\n"*3)
 # create_new_list()
@@ -233,6 +224,6 @@ if __name__ == "__main__":
 ░█░ █▀▄ ██▄ █▄▄ █▄▄ █▄█   █▀█ █▄█ ░█░ █▄█   █▄▄ █▄█ █░▀░█ █░▀░█ █ ░█░""")
   print("▓" * 80)
   t1 = time.time()
-  # add_trello_github_history_cards()
+  add_trello_github_history_cards()
   t2 = time.time()
   print(f"time to execute: {t2-t1} seconds")
