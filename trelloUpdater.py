@@ -10,13 +10,14 @@ with open("githubAPI.json","r") as f:
 
 TRELLO_API = trello_data["TRELLO_APIKEY"]
 TRELLO_TOKEN = trello_data["TRELLO_TOKEN"]
-TRELLO_ID_BOARD = trello_data["TRELLO_ID_BOARD"]
-BOARD_NAME = 'github-testing'
+TRELLO_ID_BOARD = trello_data["TRELLO_ID_BOARD"]  # use the function 'display_all_id_board()' to get the full idboard 
 
 GITHUB_USERNAME = github_data["GITHUB_USERNAME"]
-GITHUB_TOKEN = github_data["GITHUB_TOKEN"]
-GITHUB_PROJECTNAME = "song-sorter"
-TRELLO_LIST = f"{GITHUB_PROJECTNAME} push history"
+GITHUB_TOKEN = github_data["GITHUB_TOKEN"]  # a general token for public repos
+GITHUB_PRIVATE_TOKEN = github_data["GITHUB_PRIVATE_REPO_TOKEN"]  # for set privated repos
+GITHUB_PROJECTNAME = "CMP-Y1-synoptic-project"  # has to be the githubs repos name
+TRELLO_LIST = f"{GITHUB_PROJECTNAME} push history"  # list name on trello
+use_github_private_token = True  # CHANGE THIS, when a fetch request fails i will swap this value and try again.
 
 class RequestInvalid(Exception):
   def __init__(self, errorMessage):
@@ -63,19 +64,22 @@ def get_all_lists() -> requests.Response:
   else:
     raise RequestInvalid(f"Invalid request sent, status code: {response.status_code}")
 
-def check_list_exists(listName: str = "push history") -> bool | str:
+def check_list_exists(listName: str = "push history", all_lists:list[dict]  = []) -> bool | str:
   """returns False if not found, else returns listId
   given a lists name will iterate through all list names and return if its found
-  a listId example should look like '68320c9651d609bc030e3f11'."""
-  try:
-    responses = get_all_lists()
-    print(f"[{get_time()}]request to get all lists succeeded")
-  except RequestInvalid as ex:
-    print(f"[{get_time()}]request to get all lists failed")
-    print(ex)
-    return False
+  a listId example should look like '68320c9651d609bc030e3f11'.
+  
+  you can parse in the result from 'get_all_lists()' to save resources"""
+  if all_lists == []:
+    try:
+      all_lists = get_all_lists()
+      print(f"[{get_time()}]request to get all lists succeeded")
+    except RequestInvalid as ex:
+      print(f"[{get_time()}]request to get all lists failed")
+      print(ex)
+      return False
 
-  for res in responses:
+  for res in all_lists:
     if 'name' in list(res.keys()) and 'id' in list(res.keys()):
       if res["name"] == listName:
         return res["id"]
@@ -108,8 +112,12 @@ def create_new_card(idList: str, branch:str, user:str, description: str, push_da
 def get_branch_history(repo_name: str) -> list[list[str, str, str, str]]:
   """will return a list of all commits to all branches on a github project.
   will return -> [[branch_name, author, date, message]]"""
+  token = GITHUB_TOKEN
+  if use_github_private_token:
+    token = GITHUB_PRIVATE_TOKEN
+
   headers = {
-    "Authorization": f"token {GITHUB_TOKEN}",
+    "Authorization": f"token {token}",
     "Accept": "application/vnd.github.v3+json"
   }
   branches_url = f"https://api.github.com/repos/{GITHUB_USERNAME}/{repo_name}/branches"
@@ -147,7 +155,11 @@ def get_github_history(repoName: str = "") -> list[dict]:
 
   url = f'https://api.github.com/repos/{GITHUB_USERNAME}/{repoName}/commits'
 
-  response = requests.get(url, auth=(GITHUB_USERNAME, GITHUB_TOKEN))
+  token = GITHUB_TOKEN
+  if use_github_private_token:
+    token = GITHUB_PRIVATE_TOKEN
+
+  response = requests.get(url, auth=(GITHUB_USERNAME, token))
   
   if response.status_code == 200:
     return response.json()
@@ -186,6 +198,7 @@ def check_trello_card(listName: str, branch, push_summary, push_date, push_autho
   return False
 
 def add_trello_github_history_cards(list_name:str = "push history"):
+  #i know this function is too long i will eventually get round to shortening it
   try:
     history = get_branch_history(GITHUB_PROJECTNAME)
     print(f"[{get_time()}]request for getting github history succeeded")
@@ -193,7 +206,6 @@ def add_trello_github_history_cards(list_name:str = "push history"):
     print(f"[{get_time()}]request to get all branches commit history failed")
     print(ex)
     return False
-  list_name = f"{GITHUB_PROJECTNAME} push history"
   
   history_starting_at_main = []
   # this is going to mess up the big O notation for the project.
@@ -213,23 +225,23 @@ def add_trello_github_history_cards(list_name:str = "push history"):
       push_date = push['commit']['author']['date'].replace("T"," ")[:-1]  # '2025-03-29T21:53:59Z' -> '2025-03-29 21:53:59'
       push_message = push['commit']["message"]
       push_branch = push['branch']
-      if check_list_exists(list_name) == False:
+      
+      #if it cant get the list then create it, if it gets a valid response but without 'list_name' then create_new_list
+      try:
+        list_exist = check_list_exists(list_name)
+      except:
+        create_new_list(list_name)
+        list_exist = True
+
+      if list_exist == False:
         create_new_list(list_name)
 
-      #TODO edit check_trello_card to check for push_branch
+      all_lists = get_all_lists()
       does_not_exist = not check_trello_card(list_name, push_branch, push_message.split("\n")[0], push_date,push_author)
       print(f"[{get_time()}]is there a card with that info already: {not does_not_exist}")
       if does_not_exist:  # rip walrus operator used on this line you will be missed.
-        # print("\n"*2)
-        # print("="*20)
-        # print(f"branch: {push_branch}")
-        # print(f"author: {push_author}")
-        # print(f"push date: {push_date}")
-        # print(f"push message: {push_message}")
-        # print("="*20)
-
         try:
-          res = check_list_exists(list_name)
+          res = check_list_exists(list_name, all_lists)
         except RequestInvalid as ex:
           print(f"[{get_time()}]error {ex}")
           continue
@@ -239,7 +251,6 @@ def add_trello_github_history_cards(list_name:str = "push history"):
         while type(res) == bool and res == False:
           try:
             create_new_list(f"{GITHUB_PROJECTNAME} push history")
-            print("2")
             res = check_list_exists(f"{GITHUB_PROJECTNAME} push history")
           except RequestInvalid as ex:
             print(f"[{get_time()}]error {ex}")
@@ -257,13 +268,6 @@ push message:
     else:
       raise RequestInvalid(f"request received by the server is malformed, can not find either 'commit' 'author' 'date' ''")
 
-# #testing getting and adding labels:
-# check_list_exists()
-# print("\n"*3)
-# create_new_list()
-# print("\n"*3)
-# check_list_exists()
-
 def display_credits():
   print("▓" * 48)
   print("author: benedict ward")
@@ -280,7 +284,7 @@ if __name__ == "__main__":
   display_credits()
 
   start_time = time.time()
-  add_trello_github_history_cards()
+  add_trello_github_history_cards(f"{GITHUB_PROJECTNAME} push history")
   end_time = time.time()
 
   time_to_run = str(end_time-start_time)

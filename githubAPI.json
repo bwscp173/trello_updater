@@ -1,4 +1,5 @@
 {
     "GITHUB_USERNAME": "",
-    "GITHUB_TOKEN": ""
+    "GITHUB_TOKEN": "",
+    "GITHUB_PRIVATE_REPO_TOKEN": ""
 }
