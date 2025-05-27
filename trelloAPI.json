@@ -1,8 +1,5 @@
 {
-    "TRELLO_OTHER_APIKEY": "",
     "TRELLO_APIKEY": "",
     "TRELLO_TOKEN": "",
-    "TRELLO_ID_BOARD": "",
-    "TRELLO_PASSWORD": "",
-    "TRELLO_EMAIL": ""
+    "TRELLO_ID_BOARD": ""
 }
